@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0d1c30"><title>Dokter Adventure</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d1c30;font-family:system-ui,Arial;color:#fff;touch-action:none}
+#wrap{height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 15%,#24496a,#0d1c30 70%)}
+#game{width:min(100vw,177.78vh);height:min(100vh,56.25vw);position:relative;overflow:hidden;background:#9bd8dc}
+canvas{width:100%;height:100%;display:block}
+#hud{position:absolute;inset:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;pointer-events:none;text-shadow:0 2px 4px #15334a}
+.pill{background:#102b45d9;border:1px solid #ffffff55;border-radius:18px;padding:7px 13px;font-weight:800;font-size:clamp(11px,2vw,17px)}
+#controls{position:absolute;bottom:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:end;pointer-events:none}
+.pad{display:flex;gap:10px}.ctrl{pointer-events:auto;border:2px solid #ffffff99;background:#123653bb;color:white;border-radius:18px;width:clamp(48px,8vw,76px);height:clamp(48px,8vw,76px);font-size:clamp(22px,4vw,34px);font-weight:900;box-shadow:0 5px 0 #081b2b88;touch-action:none}
+#jump{width:clamp(65px,10vw,94px);height:clamp(65px,10vw,94px);border-radius:50%;background:#ed765e}
+#overlay{position:absolute;inset:0;background:#0b1b2bdc;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+.panel{max-width:520px;background:#f7fbf9;color:#18324a;border-radius:24px;padding:22px 26px;box-shadow:0 16px 50px #06132188}
+.panel h1{margin:0 0 7px;font-size:clamp(24px,5vw,42px);color:#123653}.panel p{margin:8px 0 15px;line-height:1.45}
+.start{border:0;border-radius:14px;background:#ed765e;color:white;padding:12px 25px;font-size:17px;font-weight:900}
+.small{font-size:12px;color:#5c7182}
+</style></head>
+<body><div id="wrap"><div id="game">
+<canvas id="c" width="960" height="540"></canvas>
+<div id="hud"><div class="pill">🩺 DOKTER ADVENTURE</div><div class="pill">❤️ <span id="lives">3</span> &nbsp; 🪙 <span id="score">0</span></div><div class="pill">LEVEL <span id="level">1</span></div></div>
+<div id="controls"><div class="pad"><button class="ctrl" id="left">◀</button><button class="ctrl" id="right">▶</button></div><button class="ctrl" id="jump">⬆</button></div>
+<div id="overlay"><div class="panel"><h1>Dokter Adventure</h1><p>Bantu Dokter Disky dan partnernya mengumpulkan koin serta kotak P3K, hindari rintangan, dan selamatkan klinik!</p><p class="small">Kontrol: tombol kiri/kanan untuk bergerak, tombol panah untuk melompat.</p><button class="start" id="start">MULAI PETUALANGAN</button></div></div>
+</div></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const doc=new Image(),pal=new Image();doc.src='dokter.jpg';pal.src='partner.jpg';
+let running=false,score=0,lives=3,level=1,frame=0,camera=0,keys={left:false,right:false},items=[],hazards=[],platforms=[],player;
+const W=960,H=540,ground=455;
+function reset(){player={x:90,y:350,vx:0,vy:0,w:58,h:82,on:false,inv:0};camera=0;items=[];hazards=[];platforms=[];
+ for(let i=0;i<15;i++){let x=370+i*260;platforms.push({x,y:350-(i%3)*55,w:120,h:16});items.push({x:x+45,y:platforms[i].y-35,t:'coin',got:false});if(i%2===0)hazards.push({x:x+175,y:ground-32,w:35,h:32});}
+ for(let i=0;i<5;i++)items.push({x:650+i*650,y:ground-55,t:'kit',got:false});
+}
+function roundRect(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function drawBg(){let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#8bd2e0');g.addColorStop(1,'#e8f5dc');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#fff8';for(let i=0;i<5;i++){let x=((i*250-camera*.18)%1200+1200)%1200-100;ctx.beginPath();ctx.arc(x,90+i%2*35,28,0,7);ctx.arc(x+30,82+i%2*35,36,0,7);ctx.arc(x+65,95+i%2*35,25,0,7);ctx.fill()}
+ for(let i=0;i<9;i++){let x=((i*150-camera*.35)%1100+1100)%1100-70;roundRect(x,310,48,145,12,'#72b7a1');roundRect(x+8,285,32,45,12,'#4c987f')}
+ ctx.fillStyle='#528d68';ctx.fillRect(0,ground,W,H-ground);ctx.fillStyle='#76b77a';ctx.fillRect(0,ground,W,12);
+}
+function drawPhoto(img,x,y,w,h){ctx.save();ctx.beginPath();ctx.roundRect(x,y,w,h,13);ctx.clip();if(img.complete&&img.naturalWidth){let s=Math.max(w/img.width,h/img.height),sw=w/s,sh=h/s;ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,x,y,w,h)}else{ctx.fillStyle='#fff';ctx.fillRect(x,y,w,h)}ctx.restore();ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(x,y,w,h)}
+function draw(){drawBg();
+ platforms.forEach(p=>{let x=p.x-camera;if(x>-150&&x<W+100){roundRect(x,p.y,p.w,p.h,8,'#9a6b4a');roundRect(x,p.y,p.w,6,5,'#6dbb78')}});
+ items.forEach(it=>{if(it.got)return;let x=it.x-camera;if(x<-40||x>W+40)return;if(it.t==='coin'){ctx.fillStyle='#ffc94d';ctx.beginPath();ctx.arc(x,it.y,13,0,7);ctx.fill();ctx.strokeStyle='#d68c27';ctx.lineWidth=4;ctx.stroke()}else{roundRect(x-15,it.y-15,30,30,7,'#fff');roundRect(x-5,it.y-11,10,22,3,'#ed665d');roundRect(x-11,it.y-5,22,10,3,'#ed665d')}});
+ hazards.forEach(h=>{let x=h.x-camera;if(x>-50&&x<W+50){ctx.fillStyle='#e66e55';ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+h.w/2,h.y);ctx.lineTo(x+h.w,h.y+h.h);ctx.fill()}});
+ let px=player.x-camera;drawPhoto(doc,px,player.y,player.w,player.h);ctx.fillStyle='#173b58';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('DOKTER',px+player.w/2,player.y-8);
+ // companion cameo
+ let cx=820;drawPhoto(pal,cx,ground-66,42,58);
+ ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.fillText('PARTNER',cx+21,ground-72);
+ if(!running)return;
+}
+function update(){if(!running)return;frame++;player.vx=(keys.right?4.3:0)-(keys.left?4.3:0);player.x+=player.vx;player.vy+=.55;player.y+=player.vy;
+ if(player.y+player.h>=ground){player.y=ground-player.h;player.vy=0;player.on=true}else player.on=false;
+ platforms.forEach(p=>{if(player.vy>0&&player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>=p.y&&player.y+player.h<=p.y+20){player.y=p.y-player.h;player.vy=0;player.on=true}});
+ if(player.x-camera>490)camera=player.x-490;if(player.x<camera)player.x=camera;
+ items.forEach(it=>{if(!it.got&&Math.abs(player.x+player.w/2-it.x)<34&&Math.abs(player.y+player.h/2-it.y)<65){it.got=true;score+=it.t==='kit'?5:1;document.getElementById('score').textContent=score}});
+ hazards.forEach(h=>{if(player.inv<=0&&player.x+player.w-8>h.x&&player.x+8<h.x+h.w&&player.y+player.h>h.y){lives--;player.inv=100;player.vy=-7;document.getElementById('lives').textContent=lives;if(lives<=0)end(false)}});
+ if(player.inv>0)player.inv--;if(player.x>3700){level++;document.getElementById('level').textContent=level;score+=10;player.x=90;camera=0;reset();player.x=90;items.forEach(it=>it.x+=level*80)}
+}
+function end(win){running=false;document.querySelector('#overlay .panel').innerHTML=`<h1>${win?'Hebat!':'Coba Lagi!'}</h1><p>Skor kamu: <b>${score}</b></p><button class="start" id="again">MAIN LAGI</button>`;document.getElementById('overlay').style.display='flex';document.getElementById('again').onclick=startGame}
+function loop(){if(running)update();draw();requestAnimationFrame(loop)}
+function startGame(){score=0;lives=3;level=1;document.getElementById('score').textContent=0;document.getElementById('lives').textContent=3;document.getElementById('level').textContent=1;reset();running=true;document.getElementById('overlay').style.display='none'}
+document.getElementById('start').onclick=startGame;
+function bind(id,k){let b=document.getElementById(id);b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId)});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>keys[k]=false))}
+bind('left','left');bind('right','right');document.getElementById('jump').addEventListener('pointerdown',e=>{e.preventDefault();if(player&&player.on){player.vy=-12;player.on=false}});
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if((e.key===' '||e.key==='ArrowUp'||e.key==='w')&&player.on){player.vy=-12;player.on=false}});
+window.addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false});
+reset();loop();
+</script></body></html>
